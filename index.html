@@ -1,313 +1,218 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>원소 퀴즈</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주기율표 퀴즈</title>
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      margin: 0; padding: 0;
-      display: flex; flex-direction: column;
-      align-items: center;
+      margin: 0;
+      padding: 0;
       background: #f4f7f9;
       color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
-    #container {
-      width: 100%; max-width: 600px; padding: 16px;
+    .container {
+      max-width: 100%;
+      padding: 16px;
+      box-sizing: border-box;
     }
-    h2 { margin-bottom: 8px; }
-    #startScreen, #quizScreen, #resultScreen, #countdownScreen {
-      display: none; flex-direction: column; gap: 16px;
-      background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      table-layout: fixed;
+      font-size: 12px;
     }
-    input, button, select {
-      font-size: 1.2rem; padding: 10px; width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #ccc;
+    td, th {
+      border: 1px solid #ccc;
+      text-align: center;
+      padding: 6px;
+      height: 40px;
+      position: relative;
+    }
+    th {
+      background-color: #e0e0e0;
+    }
+    .highlight {
+      background-color: #ffa07a !important;
+    }
+    .empty {
+      background-color: #f4f4f4;
+      border: none;
+    }
+    input, select, button {
+      padding: 10px;
+      margin: 6px 0;
+      width: 100%;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
     }
     button {
-      background-color: #4CAF50; color: white; border: none; cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
     }
     button:hover {
       background-color: #45a049;
     }
-    .question-section {
-      display: flex; flex-direction: column; gap: 12px;
+    .question, .summary {
+      margin-top: 20px;
     }
-    #visualization {
-      border: 1px dashed #999;
-      min-height: 260px; padding: 12px; text-align: center; border-radius: 8px;
-      background: #eef3f7; margin-bottom: 12px;
+    .hidden {
+      display: none;
     }
-    canvas {
-      display: block;
-      margin: 0 auto;
-    }
-    label { font-weight: bold; margin-bottom: 4px; display: block; }
-    table {
-      width: 100%; border-collapse: collapse; margin-top: 16px;
-    }
-    th, td {
-      border: 1px solid #ccc; padding: 8px; text-align: center;
-    }
-    th {
-      background-color: #f0f0f0;
+    .progress {
+      font-weight: bold;
+      margin-bottom: 10px;
     }
   </style>
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
 <body>
-  <div id="container">
-    <div id="startScreen">
-      <h2>학번과 이름을 입력하세요</h2>
-      <input type="text" id="studentId" placeholder="학번" />
-      <input type="text" id="studentName" placeholder="이름" />
-      <button onclick="startCountdown()">시작</button>
-    </div>
-
-    <div id="countdownScreen">
-      <h2 id="countdown"></h2>
-    </div>
-
-    <div id="quizScreen">
-      <h2 id="questionTitle">문제</h2>
-      <div class="question-section" id="questionArea"></div>
-      <div id="visualization"></div>
-      <button onclick="submitAnswer()" id="submitButton">제출</button>
-      <div id="feedback"></div>
-      <button id="nextButton" onclick="nextQuestion()" style="display: none;">다음 문제로</button>
-    </div>
-
-    <div id="resultScreen">
-      <h2>퀴즈 완료!</h2>
-      <p id="scoreDisplay"></p>
-      <button onclick="submitScore()">점수 제출</button>
-    </div>
+  <div class="container">
+    <h2>주기율표 퀴즈</h2>
+    <div id="tableArea"></div>
+    <div id="quizArea"></div>
+    <div id="summaryArea" class="hidden"></div>
   </div>
 
   <script>
-    // Firebase 설정
-    const firebaseConfig = {
-      apiKey: "AIzaSyACinx6XJuLsdbawtrGO6Qx5dOqE7nE0DM",
-      authDomain: "element-8a59a.firebaseapp.com",
-      databaseURL: "https://element-8a59a-default-rtdb.firebaseio.com",
-      projectId: "element-8a59a",
-      storageBucket: "element-8a59a.appspot.com",
-      messagingSenderId: "648811971180",
-      appId: "1:648811971180:web:daca0beb2a1670e49f0e49",
-      measurementId: "G-BKQYF8F4GP"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-
-    let studentId = "", studentName = "";
-    let currentQuestion = 0, totalTime = 0, answered = false;
-    let questions = [], results = [], submitted = false;
-    const questionTypes = ['원자번호', '금속/비금속/준금속', '주기', '족', '원자가 전자수'];
-    let startTime;
-
     const elements = [
-      {symbol: 'He', number: 2, metal: '비금속', period: 1, group: 18, valence: 0},
-      {symbol: 'Li', number: 3, metal: '금속', period: 2, group: 1, valence: 1},
-      {symbol: 'Be', number: 4, metal: '금속', period: 2, group: 2, valence: 2},
-      {symbol: 'B', number: 5, metal: '준금속', period: 2, group: 13, valence: 3},
-      {symbol: 'C', number: 6, metal: '비금속', period: 2, group: 14, valence: 4},
-      {symbol: 'N', number: 7, metal: '비금속', period: 2, group: 15, valence: 5},
-      {symbol: 'O', number: 8, metal: '비금속', period: 2, group: 16, valence: 6},
-      {symbol: 'F', number: 9, metal: '비금속', period: 2, group: 17, valence: 7},
-      {symbol: 'Ne', number: 10, metal: '비금속', period: 2, group: 18, valence: 0},
-      {symbol: 'Na', number: 11, metal: '금속', period: 3, group: 1, valence: 1},
-      {symbol: 'Mg', number: 12, metal: '금속', period: 3, group: 2, valence: 2},
-      {symbol: 'Al', number: 13, metal: '금속', period: 3, group: 13, valence: 3},
-      {symbol: 'Si', number: 14, metal: '준금속', period: 3, group: 14, valence: 4},
-      {symbol: 'P', number: 15, metal: '비금속', period: 3, group: 15, valence: 5},
-      {symbol: 'S', number: 16, metal: '비금속', period: 3, group: 16, valence: 6},
-      {symbol: 'Cl', number: 17, metal: '비금속', period: 3, group: 17, valence: 7},
-      {symbol: 'Ar', number: 18, metal: '비금속', period: 3, group: 18, valence: 0},
-      {symbol: 'K', number: 19, metal: '금속', period: 4, group: 1, valence: 1},
-      {symbol: 'Ca', number: 20, metal: '금속', period: 4, group: 2, valence: 2}
+      {symbol: 'H', name: '수소', number: 1, metal: '비금속', period: 1, group: 1},
+      {symbol: 'He', name: '헬륨', number: 2, metal: '비금속', period: 1, group: 18},
+      {symbol: 'Li', name: '리튬', number: 3, metal: '금속', period: 2, group: 1},
+      {symbol: 'Be', name: '베릴륨', number: 4, metal: '금속', period: 2, group: 2},
+      {symbol: 'B', name: '붕소', number: 5, metal: '준금속', period: 2, group: 13},
+      {symbol: 'C', name: '탄소', number: 6, metal: '비금속', period: 2, group: 14},
+      {symbol: 'N', name: '질소', number: 7, metal: '비금속', period: 2, group: 15},
+      {symbol: 'O', name: '산소', number: 8, metal: '비금속', period: 2, group: 16},
+      {symbol: 'F', name: '플루오린', number: 9, metal: '비금속', period: 2, group: 17},
+      {symbol: 'Ne', name: '네온', number: 10, metal: '비금속', period: 2, group: 18},
+      {symbol: 'Na', name: '나트륨', number: 11, metal: '금속', period: 3, group: 1},
+      {symbol: 'Mg', name: '마그네슘', number: 12, metal: '금속', period: 3, group: 2},
+      {symbol: 'Al', name: '알루미늄', number: 13, metal: '금속', period: 3, group: 13},
+      {symbol: 'Si', name: '규소', number: 14, metal: '준금속', period: 3, group: 14},
+      {symbol: 'P', name: '인', number: 15, metal: '비금속', period: 3, group: 15},
+      {symbol: 'S', name: '황', number: 16, metal: '비금속', period: 3, group: 16},
+      {symbol: 'Cl', name: '염소', number: 17, metal: '비금속', period: 3, group: 17},
+      {symbol: 'Ar', name: '아르곤', number: 18, metal: '비금속', period: 3, group: 18},
+      {symbol: 'K', name: '칼륨', number: 19, metal: '금속', period: 4, group: 1},
+      {symbol: 'Ca', name: '칼슘', number: 20, metal: '금속', period: 4, group: 2}
     ];
 
-    document.getElementById('startScreen').style.display = 'flex';
+    let quizList = [];
+    let quizIndex = 0;
+    let startTime = Date.now();
+    let results = [];
 
-    function shuffle(array) {
-      return [...array].sort(() => Math.random() - 0.5);
-    }
-
-    function startCountdown() {
-      studentId = document.getElementById('studentId').value.trim();
-      studentName = document.getElementById('studentName').value.trim();
-      if (!studentId || !studentName) return alert("학번과 이름을 모두 입력하세요.");
-      document.getElementById('startScreen').style.display = 'none';
-      document.getElementById('countdownScreen').style.display = 'flex';
-      document.getElementById('countdown').textContent = '준비!';
-      setTimeout(() => {
-        document.getElementById('countdown').textContent = '시작!';
-        setTimeout(startQuiz, 1000);
-      }, 1000);
+    function generateTable(highlightedElement) {
+      const tableArea = document.getElementById('tableArea');
+      let html = '<table><thead><tr><th>주기\\족</th>';
+      for (let g = 1; g <= 18; g++) {
+        if ([1, 2, 13, 14, 15, 16, 17, 18].includes(g)) {
+          html += `<th>${g}</th>`;
+        }
+      }
+      html += '</tr></thead><tbody>';
+      for (let period = 1; period <= 4; period++) {
+        html += `<tr><th>${period}</th>`;
+        for (let group = 1; group <= 18; group++) {
+          if ([1, 2, 13, 14, 15, 16, 17, 18].includes(group)) {
+            const el = elements.find(e => e.period === period && e.group === group);
+            if (el) {
+              const isTarget = highlightedElement && el.number === highlightedElement.number;
+              html += `<td class="${isTarget ? 'highlight' : ''}">${isTarget ? '&nbsp;' : ''}</td>`;
+            } else {
+              html += '<td class="empty"></td>';
+            }
+          }
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      tableArea.innerHTML = html;
     }
 
     function startQuiz() {
-      questions = shuffle(elements).slice(0, 3);
-      currentQuestion = 0;
-      totalTime = 0;
-      results = [];
-      document.getElementById('countdownScreen').style.display = 'none';
-      document.getElementById('quizScreen').style.display = 'flex';
-      loadQuestion();
-    }
-
-    function getElementKey(type) {
-      return {
-        '원자번호': 'number',
-        '금속/비금속/준금속': 'metal',
-        '주기': 'period',
-        '족': 'group',
-        '원자가 전자수': 'valence'
-      }[type];
-    }
-
-    function loadQuestion() {
-      answered = false;
-      const element = questions[currentQuestion];
-      document.getElementById('questionTitle').textContent = `문제 ${currentQuestion + 1}: '${element.symbol}'`;
-      document.getElementById('questionArea').innerHTML = '';
-      document.getElementById('feedback').textContent = '';
-      document.getElementById('visualization').innerHTML = '';
-      document.getElementById('nextButton').style.display = 'none';
-      document.getElementById('submitButton').disabled = false;
-      document.getElementById('submitButton').style.display = 'inline-block';
+      quizList = elements.sort(() => Math.random() - 0.5).slice(0, 3);
+      quizIndex = 0;
       startTime = Date.now();
+      showQuestion();
+    }
 
-      questionTypes.forEach(type => {
-        const div = document.createElement('div');
-        let inputField = type === '금속/비금속/준금속' ?
-          `<select data-type="${type}">
+    function showQuestion() {
+      generateTable(quizList[quizIndex]);
+      const quizArea = document.getElementById('quizArea');
+      quizArea.innerHTML = `
+        <div class="question">
+          <p class="progress">문제 ${quizIndex + 1} / 3</p>
+          <p>1. 해당 원소의 원소 기호는?</p>
+          <input id="symbol">
+          <p>2. 해당 원소의 원소명은?</p>
+          <input id="name">
+          <p>3. 해당 원소의 원자 번호는?</p>
+          <input id="number" type="number">
+          <p>4. 해당 원소는 금속/비금속/준금속 중 무엇인가?</p>
+          <select id="metal">
             <option value="">선택</option>
             <option value="금속">금속</option>
             <option value="비금속">비금속</option>
             <option value="준금속">준금속</option>
-          </select>` :
-          `<input type="text" data-type="${type}">`;
-        div.innerHTML = `<label>${type}</label>${inputField}`;
-        document.getElementById('questionArea').appendChild(div);
-      });
-    }
-
-    function drawElectronShells(atomicNumber) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 240;
-      canvas.height = 240;
-      const ctx = canvas.getContext('2d');
-      const shellConfigs = [2, 8, 8, 2];
-      let electronsLeft = atomicNumber;
-      const centerX = canvas.width / 2, centerY = canvas.height / 2;
-
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 12, 0, 2 * Math.PI);
-      ctx.fillStyle = 'red';
-      ctx.fill();
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`+${atomicNumber}`, centerX, centerY + 4);
-
-      ctx.strokeStyle = '#666';
-      ctx.fillStyle = 'black';
-
-      for (let i = 0; i < shellConfigs.length && electronsLeft > 0; i++) {
-        const radius = 30 + i * 30;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-        ctx.stroke();
-        const eCount = Math.min(electronsLeft, shellConfigs[i]);
-        for (let j = 0; j < eCount; j++) {
-          const angle = (2 * Math.PI / eCount) * j;
-          const x = centerX + radius * Math.cos(angle);
-          const y = centerY + radius * Math.sin(angle);
-          ctx.beginPath();
-          ctx.arc(x, y, 4, 0, 2 * Math.PI);
-          ctx.fill();
-        }
-        electronsLeft -= eCount;
-      }
-
-      return canvas;
+          </select>
+          <button onclick="submitAnswer()">제출</button>
+          <div id="feedback"></div>
+        </div>
+      `;
     }
 
     function submitAnswer() {
-      if (answered) return;
-      answered = true;
-      document.getElementById('submitButton').disabled = true;
+      const el = quizList[quizIndex];
+      const symbol = document.getElementById('symbol').value.trim();
+      const name = document.getElementById('name').value.trim();
+      const number = parseInt(document.getElementById('number').value);
+      const metal = document.getElementById('metal').value;
+      const feedback = document.getElementById('feedback');
 
-      const element = questions[currentQuestion];
-      const inputs = document.querySelectorAll('#questionArea input, #questionArea select');
-      let correct = true, feedback = '';
-      let timeTaken = (Date.now() - startTime) / 1000;
-      totalTime += timeTaken;
-      let addedScore = 0;
+      let wrong = [];
+      if (symbol !== el.symbol) wrong.push(`기호: ${symbol} → ${el.symbol}`);
+      if (name !== el.name) wrong.push(`이름: ${name} → ${el.name}`);
+      if (number !== el.number) wrong.push(`원자 번호: ${number} → ${el.number}`);
+      if (metal !== el.metal) wrong.push(`금속성: ${metal} → ${el.metal}`);
 
-      inputs.forEach(input => {
-        const type = input.dataset.type;
-        const value = input.value.trim();
-        const expected = element[getElementKey(type)];
-        if ((type === '금속/비금속/준금속' && value !== expected) ||
-            (type !== '금속/비금속/준금속' && parseInt(value) !== expected)) {
-          correct = false;
-          feedback += `❌ ${type} 오답 (입력: ${value}, 정답: ${expected})\n`;
-        }
-      });
-
-      if (correct) {
-        addedScore = timeTaken <= 50 ? Math.round(51 - timeTaken) : 1;
-        document.getElementById('feedback').textContent = `정답입니다! (+${addedScore}점)`;
-        const canvas = drawElectronShells(element.number);
-        document.getElementById('visualization').appendChild(canvas);
-      } else {
-        addedScore = 0;
-        document.getElementById('feedback').textContent = `오답입니다!\n\n${feedback}`;
-        document.getElementById('submitButton').style.display = 'none';
+      if (wrong.length > 0) {
+        feedback.innerHTML = `❌ 오답입니다:<br>${wrong.join('<br>')}<br>정답을 수정해야 다음 문제로 넘어갈 수 있습니다.`;
+        return;
       }
 
-      results.push({ symbol: element.symbol, result: correct ? '정답' : '오답', explanation: correct ? '-' : feedback, scoreChangeText: `+${addedScore}점`, timeTaken: timeTaken.toFixed(1), score: addedScore });
+      feedback.innerHTML = `✅ 정답입니다! 훌륭해요!`;
 
-      document.getElementById('nextButton').style.display = 'block';
+      setTimeout(() => {
+        results.push(el);
+        quizIndex++;
+        if (quizIndex < quizList.length) {
+          showQuestion();
+        } else {
+          showSummary();
+        }
+      }, 1000);
     }
 
-    function nextQuestion() {
-      currentQuestion++;
-      if (currentQuestion < 3) loadQuestion();
-      else showResult();
+    function showSummary() {
+      const time = ((Date.now() - startTime) / 1000).toFixed(1);
+      const area = document.getElementById('summaryArea');
+      document.getElementById('quizArea').classList.add('hidden');
+      area.classList.remove('hidden');
+      area.innerHTML = `<h3>퀴즈 완료!</h3>
+        <p>총 소요 시간: ${time}초</p>
+        <h4>오답노트</h4>
+        <ul>${quizList.map(e => `<li>${e.name} (${e.symbol}) - 원자번호 ${e.number}, ${e.metal}</li>`).join('')}</ul>`;
     }
 
-    function showResult() {
-      document.getElementById('quizScreen').style.display = 'none';
-      document.getElementById('resultScreen').style.display = 'flex';
-
-      const totalScore = results.reduce((sum, r) => sum + r.score, 0);
-      let tableHTML = `<table><tr><th>원소</th><th>결과</th><th>풀이 시간(초)</th><th>해설</th><th>점수 변화</th></tr>`;
-      results.forEach(r => {
-        tableHTML += `<tr><td>${r.symbol}</td><td>${r.result}</td><td>${r.timeTaken}</td><td>${r.explanation}</td><td>${r.scoreChangeText}</td></tr>`;
-      });
-      tableHTML += `</table>`;
-      document.getElementById('scoreDisplay').innerHTML = `최종 점수: ${totalScore}점<br><br>${tableHTML}`;
-    }
-
-    function submitScore() {
-      if (submitted) return alert('이미 제출되었습니다.');
-      submitted = true;
-      const finalScore = results.reduce((sum, r) => sum + r.score, 0);
-      database.ref('quiz_scores').push({
-        id: studentId,
-        name: studentName,
-        score: finalScore,
-        totalTime: Math.round(totalTime),
-        timestamp: Date.now()
-      });
-      alert('점수가 성공적으로 제출되었습니다.');
-    }
+    startQuiz();
   </script>
 </body>
 </html>
